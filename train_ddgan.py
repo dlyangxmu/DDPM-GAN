@@ -28,9 +28,11 @@ from torch.multiprocessing import Process
 import torch.distributed as dist
 import shutil
 
+# 把文件file复制到output_dir路径下
 def copy_source(file, output_dir):
     shutil.copyfile(file, os.path.join(output_dir, os.path.basename(file)))
-            
+
+# 用于分布式训练，将模型参数从进程0广播到所有进程
 def broadcast_params(params):
     for param in params:
         dist.broadcast(param.data, src=0)
@@ -96,7 +98,8 @@ class Diffusion_Coefficients():
         self.a_s_cum = self.a_s_cum.to(device)
         self.sigmas_cum = self.sigmas_cum.to(device)
         self.a_s_prev = self.a_s_prev.to(device)
-    
+
+# 根据扩散模型的前向过程对输入数据x_start加噪声，生成加噪声后的数据x_t
 def q_sample(coeff, x_start, t, *, noise=None):
     """
     Diffuse the data (t == 0 means diffused for t step)
@@ -122,6 +125,8 @@ def q_sample_pairs(coeff, x_start, t):
                    extract(coeff.sigmas, t+1, x_start.shape) * noise
     
     return x_t, x_t_plus_one
+
+
 #%% posterior sampling
 class Posterior_Coefficients():
     def __init__(self, args, device):
