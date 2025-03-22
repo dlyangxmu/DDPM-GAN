@@ -14,7 +14,7 @@ import torchvision
 from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 from pytorch_fid.fid_score import calculate_fid_given_paths
 
-#%% Diffusion coefficients 
+# %% Diffusion coefficients 
 def var_func_vp(t, beta_min, beta_max):
     log_mean_coeff = -0.25 * t ** 2 * (beta_max - beta_min) - 0.5 * t * beta_min
     var = 1. - torch.exp(2. * log_mean_coeff)
@@ -62,7 +62,7 @@ def get_sigma_schedule(args, device):
     a_s = torch.sqrt(1-betas)
     return sigmas, a_s, betas
 
-#%% posterior sampling
+# %% posterior sampling
 class Posterior_Coefficients():
     def __init__(self, args, device):
         
@@ -126,11 +126,12 @@ def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
         
     return x
 
-#%%
+# %%
 def sample_and_test(args):
     torch.manual_seed(42)
     device = 'cuda:0'
-    
+
+    # 读取测试数据
     if args.dataset == 'cifar10':
         real_img_dir = 'pytorch_fid/cifar10_train_stat.npy'
     elif args.dataset == 'celeba_256':
@@ -144,6 +145,7 @@ def sample_and_test(args):
 
     
     netG = NCSNpp(args).to(device)
+    # 加载训练好的模型（路径/生成模型的id）
     ckpt = torch.load('./saved_info/dd_gan/{}/{}/netG_{}.pth'.format(args.dataset, args.exp, args.epoch_id), map_location=device)
     
     #loading weights from ddp in single gpu
@@ -187,16 +189,14 @@ def sample_and_test(args):
         fake_sample = to_range_0_1(fake_sample)
         torchvision.utils.save_image(fake_sample, './samples_{}.jpg'.format(args.dataset))
 
-    
-    
-            
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ddgan parameters')
     parser.add_argument('--seed', type=int, default=1024,
                         help='seed used for initialization')
     parser.add_argument('--compute_fid', action='store_true', default=False,
                             help='whether or not compute FID')
+
+    # 导入的模型编号，默认第1000次迭代生成模型
     parser.add_argument('--epoch_id', type=int,default=1000)
     parser.add_argument('--num_channels', type=int, default=3,
                             help='channel of image')
@@ -247,26 +247,21 @@ if __name__ == '__main__':
                             help='scale of fourier transform')
     parser.add_argument('--not_use_tanh', action='store_true',default=False)
     
-    #geenrator and training
+    # geenrator and training
     parser.add_argument('--exp', default='experiment_cifar_default', help='name of experiment')
-    parser.add_argument('--real_img_dir', default='./pytorch_fid/cifar10_train_stat.npy', help='directory to real images for FID computation')
-
+    # 数据读取路径
+    parser.add_argument('--real_img_dir', default='./pytorch_fid/cifar10_train_stat.npy', 
+                        help='directory to real images for FID computation')
     parser.add_argument('--dataset', default='cifar10', help='name of dataset')
-    parser.add_argument('--image_size', type=int, default=32,
-                            help='size of image')
+    parser.add_argument('--image_size', type=int, default=32, help='size of image')
 
     parser.add_argument('--nz', type=int, default=100)
     parser.add_argument('--num_timesteps', type=int, default=4)
-    
     
     parser.add_argument('--z_emb_dim', type=int, default=256)
     parser.add_argument('--t_emb_dim', type=int, default=256)
     parser.add_argument('--batch_size', type=int, default=200, help='sample generating batch size')
         
-
-
-
-   
     args = parser.parse_args()
     
     sample_and_test(args)
