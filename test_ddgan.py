@@ -15,6 +15,8 @@ from score_sde.models.ncsnpp_generator_adagn import NCSNpp
 from pytorch_fid.fid_score import calculate_fid_given_paths
 
 # %% Diffusion coefficients 
+# 用于计算在扩散过程中给定时间t的方差，方差是时间的函数，并由参数beta_min和beta_max控制，结果在0和1之间
+# 此函数的核心是通过噪声调度参数beta_min和beta_max和时间t计算扩散过程中的方差，确保扩散过程的稳定性。
 def var_func_vp(t, beta_min, beta_max):
     log_mean_coeff = -0.25 * t ** 2 * (beta_max - beta_min) - 0.5 * t * beta_min
     var = 1. - torch.exp(2. * log_mean_coeff)
@@ -23,13 +25,15 @@ def var_func_vp(t, beta_min, beta_max):
 def var_func_geometric(t, beta_min, beta_max):
     return beta_min * ((beta_max / beta_min) ** t)
 
+# extract函数的主要作用：从输入张量中提取特定索引的值，并将其形状调整为与目标形状兼容的形式。
 def extract(input, t, shape):
+    # out函数式从输入张量input中提取与索引t对应的值，即从input中提取第0维度与索引t对应的值
     out = torch.gather(input, 0, t)
     reshape = [shape[0]] + [1] * (len(shape) - 1)
     out = out.reshape(*reshape)
-
     return out
 
+# 生成时间调度表，时间步序列范围为[eps_small, 1 - eps_small]，用于扩散模型需要时间步的场景
 def get_time_schedule(args, device):
     n_timestep = args.num_timesteps
     eps_small = 1e-3
@@ -43,7 +47,8 @@ def get_sigma_schedule(args, device):
     beta_min = args.beta_min
     beta_max = args.beta_max
     eps_small = 1e-3
-   
+
+    # 生成时间步序列
     t = np.arange(0, n_timestep + 1, dtype=np.float64)
     t = t / n_timestep
     t = torch.from_numpy(t) * (1. - eps_small) + eps_small
@@ -60,9 +65,11 @@ def get_sigma_schedule(args, device):
     betas = betas.type(torch.float32)
     sigmas = betas**0.5
     a_s = torch.sqrt(1-betas)
+    # sigmas：噪声标准差；a_s：累积乘积系数；betas：噪声方差
     return sigmas, a_s, betas
 
 # %% posterior sampling
+# 计算扩散模型中，后验分布系数，在反向过程中用于计算后验概率分布的均值和方差
 class Posterior_Coefficients():
     def __init__(self, args, device):
         
@@ -86,7 +93,8 @@ class Posterior_Coefficients():
         self.posterior_mean_coef2 = ((1 - self.alphas_cumprod_prev) * torch.sqrt(self.alphas) / (1 - self.alphas_cumprod))
         
         self.posterior_log_variance_clipped = torch.log(self.posterior_variance.clamp(min=1e-20))
-        
+
+# 从扩散模型中的后验概率分布采样，生成样本
 def sample_posterior(coefficients, x_0,x_t, t):
     
     def q_posterior(x_0, x_t, t):
@@ -98,7 +106,7 @@ def sample_posterior(coefficients, x_0,x_t, t):
         log_var_clipped = extract(coefficients.posterior_log_variance_clipped, t, x_t.shape)
         return mean, var, log_var_clipped
     
-  
+    # sample_x_pos为生成样本
     def p_sample(x_0, x_t, t):
         mean, _, log_var = q_posterior(x_0, x_t, t)
         
@@ -112,6 +120,7 @@ def sample_posterior(coefficients, x_0,x_t, t):
     
     return sample_x_pos
 
+# 从扩散模型中逐步生成样本，即去噪过程
 def sample_from_model(coefficients, generator, n_time, x_init, T, opt):
     x = x_init
     with torch.no_grad():
