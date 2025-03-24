@@ -47,6 +47,7 @@ def var_func_vp(t, beta_min, beta_max):
 def var_func_geometric(t, beta_min, beta_max):
     return beta_min * ((beta_max / beta_min) ** t)
 
+# 形状调整
 def extract(input, t, shape):
     out = torch.gather(input, 0, t)
     reshape = [shape[0]] + [1] * (len(shape) - 1)
@@ -84,6 +85,7 @@ def get_sigma_schedule(args, device):
     betas = betas.type(torch.float32)
     sigmas = betas**0.5
     a_s = torch.sqrt(1-betas)
+    # 返回标准差，累乘系数，方差
     return sigmas, a_s, betas
 
 class Diffusion_Coefficients():
